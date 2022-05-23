@@ -1,8 +1,10 @@
 #include <iostream>
 #include <numeric>
+#include <thread>
 #include <vector>
 #include <cmath>
 #include <list>
+#include <future>
 
 
 /// SOLVING CENTURY EQUATION:
@@ -163,18 +165,25 @@ void print_matrix (const matrix& m) {
         std::cout << std::endl;
     }
 
-    std::cout << "{";
+    const std::vector<std::tuple<std::string, std::string, std::string>> output_data({
+        { "wolfram", "{", "}" },
+        { "python", "[", "]" }
+    });
 
-    for (size_t i = 0; i < m.size(); i ++) {
-        std::cout << (i != 0 ? ", " : "") << "{";
+    for (const auto& [version, open, close] : output_data) {
+        std::cout << version << " version: " << open;
 
-        for (size_t j = 0; j < m.size(); j ++)
-            std::cout << (j != 0 ? ", " : "") << m.at(i, j);
+        for (size_t i = 0; i < m.size(); i ++) {
+            std::cout << (i != 0 ? ", " : "") << open;
 
-        std::cout << "}";
+            for (size_t j = 0; j < m.size(); j ++)
+                std::cout << (j != 0 ? ", " : "") << m.at(i, j);
+
+            std::cout << close;
+        }
+
+        std::cout << close << std::endl;
     }
-
-    std::cout << "}" << std::endl;
 }
 
 
@@ -298,10 +307,47 @@ auto find_eigen_values_and_vectors (const tridiagonal_matrix& matrix) {
     const tridiagonal_matrix first_matrix(first_matrix_elements);
     const tridiagonal_matrix second_matrix(second_matrix_elements);
 
-    /// Build sequence d and vector u:
-    const auto first_eigen_values_and_vectors = find_eigen_values_and_vectors(first_matrix);
-    const auto second_eigen_values_and_vectors = find_eigen_values_and_vectors(second_matrix);
+    /// Build eigen values and vectors concurrently:
+    using res_t = std::vector<std::pair<double, std::vector<double>>>;
 
+    res_t first_eigen_values_and_vectors;
+    res_t second_eigen_values_and_vectors;
+
+    static std::atomic<size_t> job_pairs_cnt = 0;
+    const bool is_owner = job_pairs_cnt == 0;
+    auto job_pairs_cnt_loaded = job_pairs_cnt.fetch_add(1);
+    const size_t max_job_pairs_cnt = std::thread::hardware_concurrency() / 2;
+
+    if (job_pairs_cnt_loaded < max_job_pairs_cnt) {
+        const auto process_promise = [] (const tridiagonal_matrix &matrix, std::promise<res_t> &&promise) -> void {
+            promise.set_value(find_eigen_values_and_vectors(matrix));
+        };
+
+        std::promise<res_t> first_promise;
+        std::promise<res_t> second_promise;
+
+        std::future<res_t> first_future = first_promise.get_future();
+        std::future<res_t> second_future = second_promise.get_future();
+
+        std::thread first_thread(process_promise, first_matrix, std::move(first_promise));
+        std::thread second_thread(process_promise, second_matrix, std::move(second_promise));
+
+        first_thread.join();
+        second_thread.join();
+
+        first_eigen_values_and_vectors = first_future.get();
+        second_eigen_values_and_vectors = second_future.get();
+    }
+
+    else {
+        first_eigen_values_and_vectors = find_eigen_values_and_vectors(first_matrix);
+        second_eigen_values_and_vectors = find_eigen_values_and_vectors(second_matrix);
+    }
+
+    if (is_owner)
+        job_pairs_cnt = 0;
+
+    /// Build sequence d and vector u:
     std::vector<double> u;
     std::vector<double> d;
     u.reserve(n);
@@ -441,6 +487,12 @@ auto find_eigen_values_and_vectors (const tridiagonal_matrix& matrix) {
     for (size_t i = 0; i < n; i ++)
         res[i] = std::make_pair(eigen_values[i], resulting_eigen_vectors[i]);
 
+    std::sort(
+        res.begin(),
+        res.end(),
+        [] (const auto& first, const auto& second) -> bool { return first.first < second.first; }
+    );
+
     return res;
 }
 
@@ -484,6 +536,7 @@ int main () {
         std::cin >> matrix_elements[i];
 
     const tridiagonal_matrix matrix(matrix_elements);
+    std::cout << "Running the code on the " << std::thread::hardware_concurrency() << " threads" << std::endl;
     const auto res = find_eigen_values_and_vectors(matrix);
     output(matrix, res);
 
