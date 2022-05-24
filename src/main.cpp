@@ -1,15 +1,17 @@
 #include <iostream>
+#include <cassert>
+#include <iomanip>
 #include <numeric>
+#include <future>
 #include <thread>
 #include <vector>
 #include <cmath>
 #include <list>
-#include <future>
 
 
 /// SOLVING CENTURY EQUATION:
 
-static constinit double newton_eps = 1e-15;
+static constinit double binary_search_eps = 1e-9;
 
 bool is_close (const double first, const double second, const double eps = 1e-9) {
     return std::fabs(first - second) < eps;
@@ -21,7 +23,7 @@ double find_root_with_binary_search (
     double l,
     double r
 ) {
-    while (r - l > newton_eps) {
+    while (r - l > binary_search_eps) {
         const double x = (r + l) / 2.;
         const double y = function(x);
 
@@ -162,7 +164,7 @@ void print_matrix (const matrix& m) {
         for (size_t j = 0; j < m.size(); j ++)
             std::cout << m.at(i, j) << " ";
 
-        std::cout << std::endl;
+        std::cout << "\n";
     }
 
     const std::vector<std::tuple<std::string, std::string, std::string>> output_data({
@@ -182,7 +184,7 @@ void print_matrix (const matrix& m) {
             std::cout << close;
         }
 
-        std::cout << close << std::endl;
+        std::cout << close << "\n";
     }
 }
 
@@ -500,12 +502,12 @@ auto find_eigen_values_and_vectors (const tridiagonal_matrix& matrix) {
 /// DEMO:
 
 void output (const tridiagonal_matrix& matrix, const std::vector<std::pair<double, std::vector<double>>>& res) {
-    std::cout << "matrix" << std::endl;
+    std::cout << "matrix" << "\n";
     print_matrix(matrix);
 
-    std::cout << "has the following eigenvalues and eigenvectors" << std::endl;
+    std::cout << "has the following eigenvalues and eigenvectors" << "\n";
     for (const auto& [value, vector] : res)
-        std::cout << value << ": (" <<
+        std::cout << std::fixed <<  std::setprecision(15) << value << ": (" <<
             std::accumulate(
                 vector.cbegin(),
                 vector.cend(),
@@ -513,7 +515,7 @@ void output (const tridiagonal_matrix& matrix, const std::vector<std::pair<doubl
                 [] (const std::string& accumulator, const double el) -> std::string {
                     return accumulator + (!accumulator.empty() ? ", " : "") + std::to_string(el);
                 }
-            ) << ")" << std::endl;
+            ) << ")" << "\n";
 }
 
 int main () {
@@ -522,7 +524,7 @@ int main () {
     std::cin >> n;
 
     if (n == 0)
-        std::cout << "Size should be greater then zero!" << std::endl;
+        std::cout << "Size should be greater then zero!" << "\n";
 
     std::vector<double> matrix_elements(2 * n - 1);
     std::cout << "Input primary diagonal: ";
@@ -536,9 +538,15 @@ int main () {
         std::cin >> matrix_elements[i];
 
     const tridiagonal_matrix matrix(matrix_elements);
-    std::cout << "Running the code on the " << std::thread::hardware_concurrency() << " threads" << std::endl;
+
+    std::cout << "Running the code on the " << std::thread::hardware_concurrency() << " threads" << "\n";
     const auto res = find_eigen_values_and_vectors(matrix);
     output(matrix, res);
 
+    fflush(stdout);
+
     return 0;
 }
+
+/// 3 -6.720554988865273 -79.40085646731875 -63.682505553040805 27.33935440217932 -72.66669416992708
+/// 3 -6.72 -79.40 -63.68 27.34 -72.67

@@ -1,0 +1,12 @@
+{
+  "tests": [{
+    "name": "Stress and performance tests",
+    "setup": "sudo pip3 install -r test/requirements.txt",
+    "run": "sudo python test/test.py",
+    "input": "",
+    "output": "",
+    "comparison": "included",
+    "timeout": 5,
+    "points": null
+  }]
+}
